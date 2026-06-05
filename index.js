@@ -2,106 +2,59 @@ const { Client, GatewayIntentBits, SlashCommandBuilder, EmbedBuilder, REST, Rout
 const http = require('http'); 
 require('dotenv').config();
 
-/**
- * ender.com Web Server Setup
- * الضروري لإبقاء البوت يعمل 24/7 على استضافة ريندر في الخطة المجانية
- */
+const ALLOWED_ROLE_IDS = ['1509183395907899475', '1509736904545800315']; 
+
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.write("NoMercy Network Bot is running smoothly!");
+    res.write("NoMercy Network Bot is running!");
     res.end();
 });
 
-// ريندر يعطي منفذ (Port) تلقائي، نستخدمه لفتح السيرفر
 const PORT = process.env.PORT || 8080;
-server.listen(PORT, () => {
-    console.log(`[SYSTEM] Keep-alive server listening on port ${PORT}`);
-});
+server.listen(PORT, () => console.log(`[SYSTEM] Keep-alive server listening on port ${PORT}`));
 
-/**
- * Discord Bot Configuration
- */
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers
-    ]
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
 });
 
-// تعريف الأوامر (Slash Commands)
+// تعريف الأوامر مع إضافة خيار السبب (reason)
+const createCommand = (name, description) => 
+    new SlashCommandBuilder()
+        .setName(name)
+        .setDescription(description)
+        .addSubcommand(sub => sub.setName('accept').setDescription('Accept').addUserOption(o => o.setName('member').setDescription('Member').setRequired(true)).addStringOption(o => o.setName('reason').setDescription('Optional accept reason')))
+        .addSubcommand(sub => sub.setName('reject').setDescription('Reject').addUserOption(o => o.setName('member').setDescription('Member').setRequired(true)).addStringOption(o => o.setName('reason').setDescription('Required rejection reason').setRequired(true)));
+
 const commands = [
-    new SlashCommandBuilder()
-        .setName('staffmcapply')
-        .setDescription('Manage Minecraft staff applications.')
-        .addSubcommand(sub => sub.setName('accept').setDescription('Accept a Minecraft staff applicant.').addUserOption(opt => opt.setName('member').setDescription('The member to accept').setRequired(true)))
-        .addSubcommand(sub => sub.setName('reject').setDescription('Reject a Minecraft staff applicant.').addUserOption(opt => opt.setName('member').setDescription('The member to reject').setRequired(true))),
-    new SlashCommandBuilder()
-        .setName('staffdcapply')
-        .setDescription('Manage Discord staff applications.')
-        .addSubcommand(sub => sub.setName('accept').setDescription('Accept a Discord staff applicant.').addUserOption(opt => opt.setName('member').setDescription('The member to accept').setRequired(true)))
-        .addSubcommand(sub => sub.setName('reject').setDescription('Reject a Discord staff applicant.').addUserOption(opt => opt.setName('member').setDescription('The member to reject').setRequired(true)))
+    createCommand('staffmcapply', 'Manage Minecraft staff applications.'),
+    createCommand('staffdcapply', 'Manage Discord staff applications.')
 ].map(command => command.toJSON());
 
-/**
- * Bot Events
- */
-// استخدام 'ready' بشكل صحيح لنسخة discord.js v14
 client.once('ready', async (c) => {
     console.log(`[READY] Connected as ${c.user.tag}`);
-    
     const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
-    try {
-        console.log('[SYSTEM] refreshing application (/) commands...');
-        await rest.put(
-            Routes.applicationCommands(process.env.CLIENT_ID || c.user.id), 
-            { body: commands }
-        );
-        console.log('[SUCCESS] Commands synced with Discord.');
-    } catch (error) {
-        console.error('[ERROR] Failed to sync commands:', error);
-    }
+    await rest.put(Routes.applicationCommands(process.env.CLIENT_ID || c.user.id), { body: commands });
+    console.log('[SUCCESS] Commands synced.');
 });
 
-/**
- * Interaction Handling
- */
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
-    const { commandName, options, user: staffMember } = interaction;
-    const subcommand = options.getSubcommand();
-    const targetUser = options.getUser('member');
-    
-    const formName = commandName === 'staffmcapply' ? 'Staff Application' : 'Staff Discord Application';
+    if (!interaction.member.roles.cache.some(r => ALLOWED_ROLE_IDS.includes(r.id))) {
+        return interaction.reply({ content: '❌ ليس لديك صلاحية.', flags: 64 });
+    }
+
+    const subcommand = interaction.options.getSubcommand();
+    const targetUser = interaction.options.getUser('member');
+    const reason = interaction.options.getString('reason') || (subcommand === 'accept' ? 'No additional notes.' : 'No reason provided.');
+    const formName = interaction.commandName === 'staffmcapply' ? 'Staff Application' : 'Staff Discord Application';
     const isAccept = subcommand === 'accept';
 
-    let embedDescription = '';
-
-    if (isAccept) {
-        embedDescription = 
-            `> **Form:** \`${formName}\`\n` +
-            `> **Status:** \`${isAccept ? 'Accepted' : 'Denied'}\`\n` +
-            `> **Reason:** \`Hello ${targetUser.username},\n` +
-            `>\n` +
-            `> Congratulations! 🎉 After carefully reviewing your application, we are pleased to inform you that you have been accepted to join the NoMercy Network Staff Team.\n` +
-            `>\n` +
-            `> Your strong answers, previous staff experience, maturity, and commitment to fairness and responsibility stood out. We believe you will be a great addition to our team.\n` +
-            `>\n` +
-            `> 👉 Please check your Discord messages for further instructions on the next steps (training, permissions, and staff channels).\n` +
-            `>\n` +
-            `> Welcome aboard — we're excited to have you on the team!\n` +
-            `>\n` +
-            `> -NoMercy Network Management\``;
-    } else {
-        embedDescription = 
-            `> **Form:** \`${formName}\`\n` +
-            `> **Status:** \`${isAccept ? 'Accepted' : 'Denied'}\`\n` +
-            `> **Reason:** \`After reviewing your application we decided to not proceed with it.\n` +
-            `>\n` +
-            `> Reason: Lack of experience.\n` +
-            `>\n` +
-            `> -NoMercy Network Management\``;
-    }
+    const embedDescription = 
+        `> **Form:** \`${formName}\`\n` +
+        `> **Status:** \`${isAccept ? 'Accepted' : 'Denied'}\`\n` +
+        `> **Reason:** \`${reason}\`\n\n` +
+        (isAccept ? `> Congratulations! 🎉 Welcome to the team!` : `> We regret to inform you that we cannot proceed.`);
 
     const embed = new EmbedBuilder()
         .setTitle(isAccept ? '✅ Submission Accepted' : '❌ Submission Denied')
@@ -111,11 +64,10 @@ client.on('interactionCreate', async interaction => {
 
     try {
         await targetUser.send({ embeds: [embed] });
-        await interaction.reply({ content: `✅ DM sent to ${targetUser.tag}.`, ephemeral: true });
-    } catch (error) {
-        await interaction.reply({ content: `❌ Could not send DM to ${targetUser.tag}. (Locked DMs)`, ephemeral: true });
+        await interaction.reply({ content: `✅ تم إرسال الرد لـ ${targetUser.tag}.`, flags: 64 });
+    } catch (e) {
+        await interaction.reply({ content: `❌ تعذر إرسال DM لـ ${targetUser.tag}.`, flags: 64 });
     }
 });
-
 
 client.login(process.env.TOKEN);
