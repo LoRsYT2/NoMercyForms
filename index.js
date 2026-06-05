@@ -3,7 +3,7 @@ const http = require('http');
 require('dotenv').config();
 
 /**
- * Render.com Web Server Setup
+ * ender.com Web Server Setup
  * الضروري لإبقاء البوت يعمل 24/7 على استضافة ريندر في الخطة المجانية
  */
 const server = http.createServer((req, res) => {
