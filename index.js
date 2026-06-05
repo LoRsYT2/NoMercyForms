@@ -78,7 +78,7 @@ client.on('interactionCreate', async interaction => {
     // Send the DM
     try {
         await target.send({ embeds: [embed] });
-        await interaction.reply({ content: `Successfully sent status update to ${target.tag}.`, flags: 64 });
+        await interaction.reply({ content: `Successfully sent to ${target.tag}.`, flags: 64 });
     } catch (err) {
         await interaction.reply({ content: `Failed to send DM to ${target.tag}. They might have their DMs closed.`, flags: 64 });
     }
