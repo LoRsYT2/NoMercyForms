@@ -3,7 +3,7 @@ const http = require('http');
 require('dotenv').config();
 
 // Define allowed staff roles
-const ALLOWED_ROLE_IDS = ['1509183395907899475', '1509736904545800315'];
+const ALLOWED_ROLE_IDS = ['1509183395907899475', '1509172809782263868', '1509736904545800315'];
 
 // Keep-alive server for Render
 const server = http.createServer((req, res) => {
